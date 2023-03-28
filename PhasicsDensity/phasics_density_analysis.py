@@ -16,6 +16,7 @@ import numpy as np
 
 from scipy.sparse import csc_matrix, csr_matrix
 from scipy.sparse.linalg import lsqr
+from scipy.sparse.linalg import spsolve as sp_solve
 
 from skimage.restoration import unwrap_phase
 
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
 
 ureg = UnitRegistry()
 Q_ = ureg.Quantity
+
+from timeit import default_timer as timer
 
 
 #%% PhasicsImageAnalyzer class
@@ -313,7 +316,16 @@ class PhasicsImageAnalyzer:
                       )
 
         # solve the linear equation in the least squares sense.
-        self.phase_map = lsqr(A, b)[0].reshape(self.shape)
+        
+        # start = timer()
+        # self.phase_map_lsqr = lsqr(A, b)[0].reshape(self.shape)
+        # print(f"found lsqr solution in {timer() - start:.1f} seconds")
+        
+        # start = timer()
+        self.phase_map_sp_solve = sp_solve(A.transpose() @ A, A.transpose() @ b).reshape(self.shape)
+        # print(f"solved optimum in {timer() - start:.1f} seconds")
+
+        self.phase_map = self.phase_map_sp_solve
 
         return self.phase_map
 
