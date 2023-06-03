@@ -369,7 +369,7 @@ class PhasicsImageAnalyzer:
         return self.wavefront
 
     
-    def _reconstruct_wavefront_FT_from_gradient_FTs(self):
+    def _reconstruct_wavefront_FT_from_gradient_FTs(self, max_iterations=1):
         """ Fit wavefront whose FT best corresponds to its gradient FTs
         
         From the method in 
@@ -386,55 +386,101 @@ class PhasicsImageAnalyzer:
         
         The wavefront is then simply the inverse FT of the best fit.
 
+        Also incorporates the method in 
+            Roddier, François, and Claude Roddier. "Wavefront reconstruction using 
+            iterative Fourier transforms." Applied Optics 30, no. 11 (1991): 1325-1327
+        
+        to deal with edge effects.
+
         """
         
+        # calculate padding
+        n_pad_x, n_pad_y = len(self.freq_x) // 2, len(self.freq_y) // 2
+        def pad2d(arr):
+            return np.pad(arr, ((n_pad_y, n_pad_y), (n_pad_x, n_pad_x)))
+        def unpad2d(arr):
+            return arr[n_pad_y:arr.shape[0]-n_pad_y, n_pad_x:arr.shape[1]-n_pad_x]
+
         # Calculate the u_j. These are calculated as  nu . v, where nu is the
         # coordinates in the fourier domain, and v is the vector of the 
         # gradient in the spatial domain.
-        NU_X, NU_Y = np.meshgrid(self.freq_x, self.freq_y)
+        # padded_wavefront_gradient.shape = \
+        #     (wavefront_gradient.shape[0] + 2 * n_pad_y, wavefront_gradient.shape[1] + 2 * n_pad_x)
+        # NU_X, NU_Y, and U have shape padded_wavefront_gradient.shape
+        fftshift_ua = ureg.wraps('=A', ('=A', None))(np.fft.fftshift)
+        freq_x_pad = fftshift_ua(np.fft.fftfreq(self.shape[1] + 2 * n_pad_x, d=self.CAMERA_RESOLUTION))
+        freq_y_pad = fftshift_ua(np.fft.fftfreq(self.shape[0] + 2 * n_pad_y, d=self.CAMERA_RESOLUTION))
+
+        NU_X, NU_Y = np.meshgrid(freq_x_pad, freq_y_pad)
         U = [  NU_X * center.nu_x + NU_Y * center.nu_y
              for center in self.diffraction_spot_centers
             ]
 
-        # calculate FTs of wavefront gradient maps
-        # G will have units of [length]^-1
-        @ureg.wraps('=A', '=A')
-        def fft2_with_shift_ua(wgm):
-            return np.fft.fftshift(np.fft.fft2(wgm))
-        G = [fft2_with_shift_ua(wgm) for wgm in self.wavefront_gradients]
+        # start with a blank wavefront
+        W = Q_(np.zeros(NU_X.shape), 'nm')
 
-        # Solve for FT(W)_e, the estimate of the FT of the wavefront.
-        # suppress divide by 0 error (if centers have integer row and column, 
-        # their corresponding u will have a 0.0)
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', "invalid value encountered in divide")
-            
-            W_ft = (-1j/(2*np.pi) * sum(u * g for u, g in zip(U, G)) 
-                                  / sum(np.square(u) for u in U)
-                   )
+        # for now, no stop_condition. 
+        # TODO: add stop condition based on one of
+        #   * error between gradient(W) and actual wavefront_gradient
+        #   * difference in W between successive iterations
+        stop_condition = False
 
-        @ureg.wraps('=A', '=A')
-        def ifft2_with_shift_mean_zero_ua(W_ft):
-            # W_ft has axes -Ny..Ny x -Ny..Ny. For the ifft2, shift it back to 
-            # 0..2*Ny x 0..2*Ny
-            W_ft = np.fft.ifftshift(W_ft)
-            # after shifting, the value corresponding to freq_x = freq_y = 0 should
-            # be at 0, 0, and its value should be NaN because of the division by 
-            # zero in estimating W_ft. 
-            assert np.isnan(W_ft[0, 0])
-            # setting it to 0 ensures that the mean of the phase map is 0. 
-            W_ft[0, 0] = 0.0
+        for iteration in range(max_iterations):
+
+            # calculate gradients of current estimate in each direction
+            # These are of padded shape, which means they include an estimate of the 
+            # continuation of the wavefront gradients.
+            dWe_dx = np.pad((W[:, 2:] - W[:, :-2]) / (2 * self.CAMERA_RESOLUTION), ((0, 0), (1, 1)))
+            dWe_dy = np.pad((W[2:, :] - W[:-2, :]) / (2 * self.CAMERA_RESOLUTION), ((1, 1), (0, 0)))
+            estimated_wavefront_gradients = [center.nu_x * dWe_dx + center.nu_y * dWe_dy
+                                             for center in self.diffraction_spot_centers
+                                            ] 
+
+            # insert known wavefront gradient into estimated_wavefront_gradient
+            for wg, ewg in zip(self.wavefront_gradients, estimated_wavefront_gradients):
+                ewg[n_pad_y:-n_pad_y, n_pad_x:-n_pad_x] = wg
+
+            # calculate FTs of wavefront gradient maps with estimated continuation
+            # G will have units of [length]^-1, and shape padded_wavefront_gradient.shape
+            @ureg.wraps('=A', '=A')
+            def fft2_with_shift_ua(ewg):
+                return np.fft.fftshift(np.fft.fft2(ewg))
+            G = [fft2_with_shift_ua(ewg) for ewg in estimated_wavefront_gradients]
+
+            # Solve for FT(W)_e, the estimate of the FT of the wavefront.
+            # suppress divide by 0 error (if centers have integer row and column, 
+            # their corresponding u will have a 0.0)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', "invalid value encountered in divide")
+                
+                W_ft = (-1j/(2*np.pi) * sum(u * g for u, g in zip(U, G)) 
+                                      / sum(np.square(u) for u in U)
+                       )
+
+            @ureg.wraps('=A', '=A')
+            def ifft2_with_shift_mean_zero_ua(W_ft):
+                # W_ft has axes -Ny..Ny x -Ny..Ny. For the ifft2, shift it back to 
+                # 0..2*Ny x 0..2*Ny
+                W_ft = np.fft.ifftshift(W_ft)
+                # after shifting, the value corresponding to freq_x = freq_y = 0 should
+                # be at 0, 0, and its value should be NaN because of the division by 
+                # zero in estimating W_ft. 
+                assert np.isnan(W_ft[0, 0])
+                # setting it to 0 ensures that the mean of the phase map is 0. 
+                W_ft[0, 0] = 0.0
+                
+                W = np.fft.ifft2(W_ft)
+
+                return W.real
             
-            W = np.fft.ifft2(W_ft)
-            
-            return W.real
-        
-        W = ifft2_with_shift_mean_zero_ua(W_ft)
-        
-        self.wavefront = W.to('nm')
+            W = ifft2_with_shift_mean_zero_ua(W_ft)
+
+            if stop_condition:
+                break
+
+        self.wavefront = unpad2d(W).to('nm')
 
         return self.wavefront
-    
 
     
     def calculate_wavefront(self, img: np.ndarray) -> np.ndarray:
@@ -472,7 +518,7 @@ class PhasicsImageAnalyzer:
             W = self._integrate_gradient_maps()
 
         elif self.reconstruction_method == 'velghe':
-            W = self._reconstruct_wavefront_FT_from_gradient_FTs()
+            W = self._reconstruct_wavefront_FT_from_gradient_FTs(max_iterations=5)
 
         else:
             raise ValueError(f"Unknown reconstruction method: {self.reconstruction_method}")
