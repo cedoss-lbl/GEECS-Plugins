@@ -70,8 +70,12 @@ def FitDataSomething(data, axis, function, guess = [0.,0.,0.], datlabel = 'Simul
 def Linear(p, x):
     return p[0]*x + p[1]
 
+
+"""
 def Gaussian(x, amp, sigma, x0):
     return amp * np.exp(-0.5 * np.square((x - x0) / sigma))
+"""
+
 
 def Gaussian(p, x):
     return  p[0]*np.exp(-.5*np.square(x-p[2])/np.square(p[1]))

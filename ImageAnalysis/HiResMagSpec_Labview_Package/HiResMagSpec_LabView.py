@@ -14,7 +14,7 @@ from array import array
 
 import HiResAnalysisModules.HiResMagSpecAnalysis as MagSpecAnalysis
 import HiResAnalysisModules.DirectoryModules_HiRes as DirectoryFunc
-#import HiResAnalysisModules.pngTools_HiRes as pngTools
+import HiResAnalysisModules.pngTools_HiRes as pngTools
 
 def HiResMagSpec_LabView(image):
 
@@ -38,7 +38,7 @@ def HiResMagSpec_LabView(image):
     return values
 
 
-"""
+
 if __name__ == '__main__':
 
     data_day = 29
@@ -55,4 +55,4 @@ if __name__ == '__main__':
 
     results = HiResMagSpec_LabView(raw_image)
     print(results)
-"""
+
