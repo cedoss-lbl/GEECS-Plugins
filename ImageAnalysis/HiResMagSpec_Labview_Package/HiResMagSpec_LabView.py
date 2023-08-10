@@ -41,18 +41,19 @@ def HiResMagSpec_LabView(image):
 
 if __name__ == '__main__':
 
-    data_day = 29
-    data_month = 6
+    data_day = 9#29
+    data_month = 8#6
     data_year = 2023
-    scan_number = 23
-    shot_number = 20
+    scan_number = 9#23
+    shot_number = 1
 
     superpath = DirectoryFunc.CompileDailyPath(data_day, data_month, data_year)
-    image_name = "U_HiResMagCam"
+    #image_name = "U_HiResMagCam"
+    image_name = "UC_TestCam"
 
     fullpath = DirectoryFunc.CompileFileLocation(superpath, scan_number, shot_number, image_name, suffix=".png")
     raw_image = pngTools.nBitPNG(fullpath)
 
-    results = HiResMagSpec_LabView(raw_image)
+    results = HiResMagSpec_LabView(raw_image[1:-1,1:-1])
     print(results)
 

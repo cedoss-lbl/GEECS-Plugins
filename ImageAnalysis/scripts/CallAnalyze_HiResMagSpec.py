@@ -19,7 +19,7 @@ Generate the filepath to the saved data here.  Including the scan and shot numbe
 In the future, this step will be embedded in some other process.
 """
 
-sampleCase = 1
+sampleCase = 3
 if sampleCase == 1:
     data_day = 29
     data_month = 6
@@ -36,12 +36,21 @@ elif sampleCase == 2:
     scan_number = 25
     shot_number = 27
 
+elif sampleCase == 3:
+    data_day = 9
+    data_month = 8
+    data_year = 2023
+
+    scan_number = 9
+    shot_number = 27
+
 else:
     print("Pick a valid sample case!")
     data_day = 0; data_month = 0; data_year = 0
 
 superpath = DirectoryFunc.CompileDailyPath(data_day, data_month, data_year)
 image_name = "U_HiResMagCam"
+#image_name = "UC_TestCam"
 
 """
 From the path, load the image, tdms, and interpSpec files
