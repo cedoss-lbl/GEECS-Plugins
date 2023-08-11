@@ -17,10 +17,11 @@ import HiResAnalysisModules.CedossMathTools_HiRes as MathTools
 import HiResAnalysisModules.EnergyAxisLookup_HiRes as EnergyAxisLookup
 
 
-def PrintTime(label, time_in, doPrint = False):
+def PrintTime(label, time_in, doPrint=False):
     if doPrint:
-        print(label, time.perf_counter()-time_in)
+        print(label, time.perf_counter() - time_in)
     return time.perf_counter()
+
 
 def AnalyzeImage(inputImage, inputParams):
     currentTime = time.perf_counter()
@@ -86,7 +87,7 @@ def AnalyzeImage(inputImage, inputParams):
             binsize = inputParams["Transverse-Slice-Binsize"]
             sliceThreshold = inputParams["Transverse-Slice-Threshold"]
             sigma_arr, x0_arr, amp_arr, err_arr = TransverseSliceLoop(image, calibrationFactor=calibrationFactor,
-                                                                              threshold=sliceThreshold, binsize=binsize)
+                                                                      threshold=sliceThreshold, binsize=binsize)
             currentTime = PrintTime(" Gaussian Fits for each Slice:", currentTime, doPrint=doPrint)
 
             averageBeamSize = CalculateAverageSize(sigma_arr, amp_arr)
@@ -107,19 +108,19 @@ def AnalyzeImage(inputImage, inputParams):
             beamIntercept = float(0.0)
 
     magSpecDict = {
-        "Clipped-Percentage": clippedPercentage,                # 1
-        "Saturation-Counts": saturationCheck,                   # 2
-        "Charge-On-Camera": chargeOnCamera,                     # 3
-        "Peak-Charge": peakCharge,                              # 4
-        "Peak-Charge-Energy": peakChargeEnergy,                 # 5
-        "Average-Energy": averageEnergy,                        # 6
-        "Energy-Spread": energySpread,                          # 7
-        "Energy-Spread-Percent": energySpread/averageEnergy,    # 8
+        "Clipped-Percentage": clippedPercentage,  # 1
+        "Saturation-Counts": saturationCheck,  # 2
+        "Charge-On-Camera": chargeOnCamera,  # 3
+        "Peak-Charge": peakCharge,  # 4
+        "Peak-Charge-Energy": peakChargeEnergy,  # 5
+        "Average-Energy": averageEnergy,  # 6
+        "Energy-Spread": energySpread,  # 7
+        "Energy-Spread-Percent": energySpread / averageEnergy,  # 8
         "Average-Beam-Size": averageBeamSize,
         "Projected-Beam-Size": projectedBeamSize,
         "Beam-Tilt": beamAngle,
         "Beam-Intercept": beamIntercept,
-        "Beam-Intercept-100MeV": 100*beamAngle + beamIntercept
+        "Beam-Intercept-100MeV": 100 * beamAngle + beamIntercept
     }
     return image, magSpecDict
 
@@ -127,6 +128,7 @@ def AnalyzeImage(inputImage, inputParams):
 def NormalizeImage(image, normalizationFactor):
     returnimage = np.copy(image) * normalizationFactor
     return returnimage
+
 
 """
 def PrintNormalization(shotnumber, tdms_filepath):
@@ -152,6 +154,7 @@ def LoadImage(superpath, scannumber, shotnumber, folderpath):
     return image
 """
 
+
 def ThresholdReduction(image, threshold):
     returnimage = np.copy(image) - threshold
     returnimage[np.where(returnimage < 0)] = 0
@@ -159,7 +162,7 @@ def ThresholdReduction(image, threshold):
 
 
 def CalculateClippedPercentage(image):
-    #roi_image = image[1:-1,1:-1]
+    # roi_image = image[1:-1,1:-1]
     clipcheck = np.append(np.append(np.append(image[0, :], image[:, 0]), image[-1, :]), image[:, -1])
     maxval = np.max(image)
     if maxval != 0:
@@ -227,6 +230,7 @@ def FitBeamAngle(x0_arr, amp_arr, energy_arr):
     linear_fit = np.polyfit(energy_arr, x0_arr, deg=1, w=np.power(amp_arr, 2))
     return linear_fit
 
+
 """
 def GetBeamCharge(tdms_filepath):
     # For future reference, can list all of the groups using tdms_file.groups()
@@ -257,6 +261,7 @@ def GetCameraTriggerAndExposure(tdms_filepath):
     return trigger_list, exposure_list
 """
 
+
 def FindMax(image):
     ymax, xmax = np.unravel_index(np.argmax(image), image.shape)
     maxval = image[ymax, xmax]
@@ -266,8 +271,10 @@ def FindMax(image):
 def SaturationCheck(image, saturationValue):
     return len(np.where(image > saturationValue)[0])
 
+
 def Gaussian(x, amp, sigma, x0):
     return amp * np.exp(-0.5 * ((x - x0) / sigma) ** 2)
+
 
 def FitDataSomething(data, axis, function, guess=[0., 0., 0.]):
     errfunc = lambda p, x, y: function(x, *p) - y
@@ -277,6 +284,7 @@ def FitDataSomething(data, axis, function, guess=[0., 0., 0.]):
 
 
 def TransverseSliceLoop(image, calibrationFactor=1, threshold=0.01, binsize=1, option=1):
+    # option 0 for Gaussian fits, option 1 for moment statistics.  1 is usually super good enough
     ny, nx = np.shape(image)
     xloc, yloc, maxval = FindMax(image)
 
@@ -313,15 +321,15 @@ def TransverseSliceLoop(image, calibrationFactor=1, threshold=0.01, binsize=1, o
 
 def GetTransverseStatSlices(axis_arr, slice_arr):
     amp_slice = np.average(slice_arr)
-    x0_slice = np.average(np.average(axis_arr, weights= slice_arr))
-    sigma_slice = np.sqrt(np.average(np.power(axis_arr - x0_slice, 2), weights = slice_arr))
+    x0_slice = np.average(np.average(axis_arr, weights=slice_arr))
+    sigma_slice = np.sqrt(np.average(np.power(axis_arr - x0_slice, 2), weights=slice_arr))
     err_slice = 0
     return sigma_slice, x0_slice, amp_slice, err_slice
 
 
 def FitTransverseGaussianSlices(axis_arr, slice_arr):
     fit = FitDataSomething(slice_arr, axis_arr, Gaussian,
-                           guess=[max(slice_arr), 5 * 43,#calibrationFactor,
+                           guess=[max(slice_arr), 5 * 43,  # calibrationFactor,
                                   axis_arr[np.argmax(slice_arr)]])
     amp_fit, sigma_fit, x0_fit = fit
 

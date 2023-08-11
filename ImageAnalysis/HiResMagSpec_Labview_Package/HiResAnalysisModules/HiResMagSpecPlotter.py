@@ -9,7 +9,6 @@ Migration of my plotting scripts in the original MagSpecAnalysis module to be us
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import time
 
 import HiResAnalysisModules.HiResMagSpecAnalysis as MagSpec
 import HiResAnalysisModules.EnergyAxisLookup_HiRes as EnergyAxisLookup
@@ -24,7 +23,6 @@ def PlotEnergyProjection(image, analyzeDict, inputParams, plotInfo=None,
     if doNormalize:
         image = MagSpec.NormalizeImage(image, normalization_factor)
 
-    #interpSpec_energy_arr, spec_charge_arr = ParseInterpSpec(interpSpec_filepath)
     image = np.copy(image[::-1, ::-1])
     image_width = np.shape(image)[1]
     pixel_arr = np.linspace(0, image_width, image_width)
@@ -55,7 +53,8 @@ def PlotEnergyProjection(image, analyzeDict, inputParams, plotInfo=None,
 
 
 def PlotBeamDistribution(image, analyzeDict, inputParams, plotInfo=None,
-                         doThreshold=False, doNormalize=False):
+                         doThreshold=False, doNormalize=False, style=0):
+    # 1 for saturation check, 2 for a tropical vacation, anything else for normal
     normalization_factor = inputParams["Normalization-Factor"]
     if doThreshold:
         threshold = inputParams["Threshold-Value"]
@@ -63,16 +62,12 @@ def PlotBeamDistribution(image, analyzeDict, inputParams, plotInfo=None,
     if doNormalize:
         image = MagSpec.NormalizeImage(image, normalization_factor)
 
-    #interpSpec_energy_arr, spec_charge_arr = ParseInterpSpec(interpSpec_filepath)
     image = np.copy(image[::-1, ::-1])
     image_width = np.shape(image)[1]
     pixel_arr = np.linspace(0, image_width, image_width)
-    #energy_arr = EnergyAxis.GetEstimatedEnergyAxis(pixel_arr, interpSpec_energy_arr)
     energy_arr = EnergyAxisLookup.return_default_energy_axis(pixel_arr)
-    # sigma_arr, x0_arr, amp_arr, err_arr = FitTransverseGaussianSlices(image, calibrationFactor = calibrationFactor, threshold = sliceThreshold)
 
     transverse_calibration = inputParams["Transverse-Calibration"]
-    # linear_fit = FitBeamAngle(x0_arr, amp_arr, energy_arr)
     projected_axis, projected_arr, projected_size = MagSpec.CalculateProjectedBeamSize(image,
                                                                                calibrationFactor=transverse_calibration)
 
@@ -90,9 +85,7 @@ def PlotBeamDistribution(image, analyzeDict, inputParams, plotInfo=None,
 
     maxx, maxy, maxval = MagSpec.FindMax(image)
 
-    color_choice = 2 # 1 for saturation check, 2 for a tropical vacation, anything else for normal
-
-    if color_choice == 1:
+    if style == 1:
         colors_normal = plt.cm.Greens_r(np.linspace(0, 0.80, 256))
         colors_saturated = plt.cm.jet(np.linspace(0.99, 1, 5))
         all_colors = np.vstack((colors_normal, colors_saturated))
@@ -101,7 +94,7 @@ def PlotBeamDistribution(image, analyzeDict, inputParams, plotInfo=None,
         print("Saturation Counts:", analyzeDict["Saturation-Counts"])
         print("Saturation Percentage:", analyzeDict["Saturation-Counts"]/(np.shape(image)[0]*np.shape(image)[1])*100,"%")
 
-    elif color_choice == 2 and maxval != 0:
+    elif style == 2 and maxval != 0:
         colors_water = plt.cm.terrain(np.linspace(0, 0.17, 256))
         colors_land = plt.cm.terrain(np.linspace(0.25, 1, 256))
         all_colors = np.vstack((colors_water, colors_land))
@@ -166,7 +159,6 @@ def PlotSliceStatistics(image, analyzeDict, inputParams, plotInfo=None,
     if doNormalize:
         image = MagSpec.NormalizeImage(image, normalization_factor)
 
-    #interpSpec_energy_arr, spec_charge_arr = ParseInterpSpec(interpSpec_filepath)
     image = np.copy(image[::-1, ::-1])
     image_width = np.shape(image)[1]
     pixel_arr = np.linspace(0, image_width, image_width)
@@ -176,35 +168,17 @@ def PlotSliceStatistics(image, analyzeDict, inputParams, plotInfo=None,
     binsize = inputParams["Transverse-Slice-Binsize"]
     sliceThreshold = inputParams["Transverse-Slice-Threshold"]
 
-    #start = time.perf_counter()
-    #sigma_arr, x0_arr, amp_arr, err_arr = MagSpec.TransverseSliceLoop(image, calibrationFactor=transverse_calibration,
-                                                                           #threshold=sliceThreshold, binsize=binsize, option=0)
-    #mid = time.perf_counter()
     sigma_arr, x0_arr, amp_arr, err_arr = MagSpec.TransverseSliceLoop(image, calibrationFactor=transverse_calibration,
                                                                       threshold=sliceThreshold, binsize=binsize, option=1)
-    #end = time.perf_counter()
-
-    #print("Fit Loop: ",mid-start)
-    #print("Stat Loop:",end-mid)
 
     average_size = analyzeDict['Average-Beam-Size']
     camera_charge = analyzeDict['Charge-On-Camera']
-
-    #average_size = np.average(sigma_arr, weights=amp_arr)
-    #average_size2 = np.average(sigma_arr2, weights=amp_arr2)
-    #print(average_size, average_size2)
 
     #plt.errorbar(energy_arr, sigma_arr, yerr=err_arr * 10, c='b', ls='dotted', label="Relative Error in Fit")
     plt.plot(energy_arr, sigma_arr, c='r', ls='solid', label="Tranverse Size of Slice")
     plt.plot([energy_arr[0], energy_arr[-1]], [average_size, average_size], c='g', ls='dashed',
              label="Average Size:" + "{:10.2f}".format(average_size) + r'$\mathrm{\ \mu m}$')
     plt.plot(energy_arr, amp_arr * 0.5*np.max(sigma_arr)/np.max(amp_arr), c='k', ls='dashed', label="Relative Weight")
-
-    #plt.plot(energy_arr, sigma_arr2, c='r', ls='solid', label="Tranverse Size of Slice")
-    #plt.plot([energy_arr[0], energy_arr[-1]], [average_size2, average_size2], c='g', ls='dashed',
-    #         label="Average Size:" + "{:10.2f}".format(average_size2) + r'$\mathrm{\ \mu m}$')
-    #plt.plot(energy_arr, amp_arr2 * 0.5 * np.max(sigma_arr) / np.max(amp_arr), c='k', ls='dashed',
-    #         label="Relative Weight")
 
     plt.xlabel("Energy " + r'$(\mathrm{\ MeV})$')
     plt.ylabel("Transverse Beam Size " + r'$(\mathrm{\mu m})$')

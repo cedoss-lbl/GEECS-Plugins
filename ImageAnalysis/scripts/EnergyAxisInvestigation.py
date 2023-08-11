@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, "../")
 import modules.MagSpecAnalysis as MagSpecAnalysis
 import modules.DirectoryModules as DirectoryFunc
+import modules.EnergyAxisLookup as EnergyAxis
 
 # Load both the interpolated and raw images
 
@@ -70,6 +71,10 @@ estimated_axis = estimated_axis + (0.03)*np.power(estimated_axis-Ebend,1) + (-0.
 
 #raw_charge_arr = np.flip(raw_charge_arr)
 
+pixel_axis = np.arange(0, len(raw_charge_arr))
+lookup_axis = EnergyAxis.return_default_energy_axis(pixel_axis)
+
+
 # Plot and compare
 
 plotInfo = DirectoryFunc.CompilePlotInfo(data_day, data_month, data_year, scan_number, shot_number, "Projection Comparison")
@@ -77,6 +82,7 @@ plotInfo = DirectoryFunc.CompilePlotInfo(data_day, data_month, data_year, scan_n
 plt.plot(energy_arr, int_charge_arr, c = 'g', label="Interpolated Projection")
 plt.plot(linear_axis, raw_charge_arr, c = 'b', ls = 'dashed', label="Raw Projection")
 plt.plot(estimated_axis, raw_charge_arr, c = 'r', ls = 'dotted', label="Estimated Projection")
+plt.plot(lookup_axis, raw_charge_arr, c='orange', ls='dotted', label="Lookup")
 plt.legend(title="Want Green and Red to Match")
 plt.title(plotInfo)
 plt.xlabel("Energy (MeV)")
